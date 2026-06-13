@@ -1,0 +1,365 @@
+-- Services
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+
+-- Modal UI
+local Modal = loadstring(game:HttpGet("https://github.com/BloxCrypto/Modal/releases/download/v1.0-beta/main.lua"))()
+local Window = Modal:CreateWindow({
+    Title = "Aqua.Hook",
+    SubTitle = "discord.gg/4cRs5MWsbn",
+    Size = UDim2.fromOffset(520, 280),
+    MinimumSize = Vector2.new(300, 220),
+    Transparency = 0,
+    Icon = "rbxassetid://68073547",
+})
+
+-- Flags table (mirrors r27 from original)
+local Flags = {
+    -- Silent Aim
+    silent_aim_enabled     = false,
+    silent_aim_teammates   = false,
+    silent_aim_hit_part    = "head",
+    silent_aim_draw_fov    = false,
+    silent_aim_fov_color   = Color3.new(1, 1, 1),
+    silent_aim_fov_size    = 120,
+
+    -- Weapon Modifications
+    weapon_modifications_enabled  = false,
+    weapon_modifications_recoil_x = 100,
+    weapon_modifications_recoil_y = 100,
+
+    -- Hurt Box Expander
+    hurt_box_expander_enabled      = false,
+    hurt_box_expander_teammates    = false,
+    hurt_box_expander_transparency = 0,
+    hurt_box_expander_size_x       = 1,
+    hurt_box_expander_size_y       = 1,
+    hurt_box_expander_size_z       = 1,
+
+    -- Player Visuals
+    player_visuals_enabled         = false,
+    player_visuals_teammates       = false,
+    player_visuals_box             = false,
+    player_visuals_box_color       = Color3.new(1, 1, 1),
+    player_visuals_name            = false,
+    player_visuals_name_color      = Color3.new(1, 1, 1),
+    player_visuals_weapon          = false,
+    player_visuals_weapon_color    = Color3.new(1, 1, 1),
+    player_visuals_distance        = false,
+    player_visuals_distance_color  = Color3.new(1, 1, 1),
+}
+
+-- FOV circles
+local viewport = workspace.CurrentCamera.ViewportSize / 2
+
+local FovOuter = Drawing.new("Circle")
+FovOuter.Visible   = false
+FovOuter.Position  = viewport
+FovOuter.Thickness = 3
+FovOuter.Color     = Color3.new(0, 0, 0)
+FovOuter.Filled    = false
+FovOuter.Radius    = 121
+
+local FovInner = Drawing.new("Circle")
+FovInner.Visible   = false
+FovInner.Position  = viewport
+FovInner.Thickness = 1
+FovInner.Color     = Color3.new(1, 1, 1)
+FovInner.Filled    = false
+FovInner.Radius    = 120
+
+-- ── COMBAT TAB ──────────────────────────────────────────────────────────────
+local Combat = Window:AddTab("Combat")
+
+Combat:New("Title")({ Title = "Silent Aim" })
+
+Combat:New("Toggle")({
+    Title        = "Enabled",
+    DefaultValue = false,
+    Callback     = function(v) Flags.silent_aim_enabled = v end,
+})
+
+Combat:New("Toggle")({
+    Title        = "Teammates",
+    DefaultValue = false,
+    Callback     = function(v) Flags.silent_aim_teammates = v end,
+})
+
+Combat:New("Dropdown")({
+    Title    = "Hit Part",
+    Options  = { "head", "torso" },
+    Default  = "head",
+    Callback = function(v) Flags.silent_aim_hit_part = v end,
+})
+
+local FovToggle
+FovToggle = Combat:New("Toggle")({
+    Title        = "Draw FOV",
+    DefaultValue = false,
+    Callback     = function(v)
+        Flags.silent_aim_draw_fov = v
+        FovInner.Visible = v
+        FovOuter.Visible = v
+    end,
+})
+
+Combat:New("ColorPicker")({
+    Title    = "FOV Color",
+    Default  = Color3.new(1, 1, 1),
+    Callback = function(c)
+        Flags.silent_aim_fov_color = c
+        FovInner.Color = c
+    end,
+})
+
+Combat:New("Slider")({
+    Title        = "FOV Size",
+    Default      = 120,
+    Minimum      = 0,
+    Maximum      = 1000,
+    DecimalCount = 0,
+    Callback     = function(v)
+        Flags.silent_aim_fov_size = v
+        FovInner.Radius = v
+        FovOuter.Radius = v + 1
+    end,
+})
+
+Combat:New("Title")({ Title = "Weapon Modifications" })
+
+Combat:New("Toggle")({
+    Title        = "Enabled",
+    DefaultValue = false,
+    Callback     = function(v) Flags.weapon_modifications_enabled = v end,
+})
+
+Combat:New("Slider")({
+    Title        = "Recoil X",
+    Default      = 100,
+    Minimum      = 0,
+    Maximum      = 100,
+    DecimalCount = 0,
+    Callback     = function(v) Flags.weapon_modifications_recoil_x = v end,
+})
+
+Combat:New("Slider")({
+    Title        = "Recoil Y",
+    Default      = 100,
+    Minimum      = 0,
+    Maximum      = 100,
+    DecimalCount = 0,
+    Callback     = function(v) Flags.weapon_modifications_recoil_y = v end,
+})
+
+Combat:New("Title")({ Title = "Hurt Box Expander" })
+
+Combat:New("Toggle")({
+    Title        = "Enabled",
+    DefaultValue = false,
+    Callback     = function(v) Flags.hurt_box_expander_enabled = v end,
+})
+
+Combat:New("Toggle")({
+    Title        = "Teammates",
+    DefaultValue = false,
+    Callback     = function(v) Flags.hurt_box_expander_teammates = v end,
+})
+
+Combat:New("Slider")({
+    Title        = "Transparency",
+    Default      = 0,
+    Minimum      = 0,
+    Maximum      = 100,
+    DecimalCount = 0,
+    Callback     = function(v) Flags.hurt_box_expander_transparency = v end,
+})
+
+Combat:New("Slider")({
+    Title        = "Size X",
+    Default      = 1,
+    Minimum      = 1,
+    Maximum      = 10,
+    DecimalCount = 2,
+    Callback     = function(v) Flags.hurt_box_expander_size_x = v end,
+})
+
+Combat:New("Slider")({
+    Title        = "Size Y",
+    Default      = 1,
+    Minimum      = 1,
+    Maximum      = 10,
+    DecimalCount = 2,
+    Callback     = function(v) Flags.hurt_box_expander_size_y = v end,
+})
+
+Combat:New("Slider")({
+    Title        = "Size Z",
+    Default      = 1,
+    Minimum      = 1,
+    Maximum      = 10,
+    DecimalCount = 2,
+    Callback     = function(v) Flags.hurt_box_expander_size_z = v end,
+})
+
+-- ── VISUALS TAB ─────────────────────────────────────────────────────────────
+local Visuals = Window:AddTab("Visuals")
+
+Visuals:New("Title")({ Title = "Player Visuals" })
+
+Visuals:New("Toggle")({
+    Title        = "Enabled",
+    DefaultValue = false,
+    Callback     = function(v) Flags.player_visuals_enabled = v end,
+})
+
+Visuals:New("Toggle")({
+    Title        = "Teammates",
+    DefaultValue = false,
+    Callback     = function(v) Flags.player_visuals_teammates = v end,
+})
+
+Visuals:New("Toggle")({
+    Title        = "Boxes",
+    DefaultValue = false,
+    Callback     = function(v) Flags.player_visuals_box = v end,
+})
+
+Visuals:New("ColorPicker")({
+    Title    = "Box Color",
+    Default  = Color3.new(1, 1, 1),
+    Callback = function(c) Flags.player_visuals_box_color = c end,
+})
+
+Visuals:New("Toggle")({
+    Title        = "Names",
+    DefaultValue = false,
+    Callback     = function(v) Flags.player_visuals_name = v end,
+})
+
+Visuals:New("ColorPicker")({
+    Title    = "Name Color",
+    Default  = Color3.new(1, 1, 1),
+    Callback = function(c) Flags.player_visuals_name_color = c end,
+})
+
+Visuals:New("Toggle")({
+    Title        = "Weapons",
+    DefaultValue = false,
+    Callback     = function(v) Flags.player_visuals_weapon = v end,
+})
+
+Visuals:New("ColorPicker")({
+    Title    = "Weapon Color",
+    Default  = Color3.new(1, 1, 1),
+    Callback = function(c) Flags.player_visuals_weapon_color = c end,
+})
+
+Visuals:New("Toggle")({
+    Title        = "Distances",
+    DefaultValue = false,
+    Callback     = function(v) Flags.player_visuals_distance = v end,
+})
+
+Visuals:New("ColorPicker")({
+    Title    = "Distance Color",
+    Default  = Color3.new(1, 1, 1),
+    Callback = function(c) Flags.player_visuals_distance_color = c end,
+})
+
+-- ── MISC TAB ────────────────────────────────────────────────────────────────
+local Misc = Window:AddTab("Misc")
+
+Misc:New("Title")({ Title = "Luas" })
+
+local function listLuas()
+    local files = listfiles("Aqua.Hook/Luas")
+    local names = {}
+    for _, path in ipairs(files) do
+        if path:sub(-4) == ".lua" then
+            local name = path:match("[/\\]([^/\\]+)%.lua$") or path
+            table.insert(names, name)
+        end
+    end
+    return names
+end
+
+for _, folder in ipairs({ "Aqua.Hook", "Aqua.Hook/Luas" }) do
+    if not isfolder(folder) then makefolder(folder) end
+end
+
+local LuaDropdown
+LuaDropdown = Misc:New("Dropdown")({
+    Title   = "Select Lua",
+    Options = listLuas(),
+    Callback = function(v) end,
+})
+
+Misc:New("Button")({
+    Title    = "Refresh",
+    Callback = function()
+        LuaDropdown:SetOptions(listLuas())
+    end,
+})
+
+Misc:New("Button")({
+    Title    = "Load Selected",
+    Callback = function()
+        if LuaDropdown.Value and LuaDropdown.Value ~= "" then
+            local path = "Aqua.Hook/Luas/" .. LuaDropdown.Value .. ".lua"
+            local fn, err = loadfile(path)
+            if fn then
+                task.spawn(fn)
+            else
+                Window:Notify({ Title = "Error", Description = tostring(err), Duration = 5, Type = "Error" })
+            end
+        end
+    end,
+})
+
+Misc:New("Button")({
+    Title    = "Load All",
+    Callback = function()
+        for _, name in ipairs(listLuas()) do
+            local fn, err = loadfile("Aqua.Hook/Luas/" .. name .. ".lua")
+            if fn then
+                task.spawn(fn)
+            else
+                Window:Notify({ Title = "Error", Description = tostring(err), Duration = 4, Type = "Error" })
+            end
+        end
+    end,
+})
+
+-- ── SETTINGS TAB ────────────────────────────────────────────────────────────
+local Settings = Window:AddTab("Settings")
+
+Settings:New("Title")({ Title = "Themes" })
+
+Settings:New("Dropdown")({
+    Title    = "Theme",
+    Options  = { "Light", "Dark", "Midnight", "Rose", "Emerald" },
+    Default  = "Rose",
+    Callback = function(t) Window:SetTheme(t) end,
+})
+
+Settings:New("Slider")({
+    Title        = "Transparency",
+    Default      = 0,
+    Minimum      = 0,
+    Maximum      = 0.8,
+    DecimalCount = 2,
+    Callback     = function(v) Window:SetTransparency(v) end,
+})
+
+Settings:New("Button")({
+    Title    = "Destroy GUI",
+    Callback = function() Window:Destroy() end,
+})
+
+-- ── INIT ────────────────────────────────────────────────────────────────────
+Window:SetTab("Combat")
+Window:SetTheme("Rose")
+
+-- Expose Flags for external lua modules loaded via the Luas tab
+getgenv().AquaFlags = Flags
